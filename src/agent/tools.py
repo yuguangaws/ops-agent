@@ -1,42 +1,31 @@
-from typing import Dict
+from typing import List
 
-# ====================== Mock 运维工具 ======================
-def mock_check_cpu() -> Dict:
-    return {"tool": "CPU检查", "result": "CPU使用率：96%，存在异常占用进程"}
+# ==================== Mock 运维工具 ====================
+def mock_check_host(assets: List[str]) -> str:
+    """主机排查工具：CPU/内存/进程/磁盘"""
+    return f"【主机排查】{assets} | CPU使用率95%，内存88%，Java进程僵死"
 
-def mock_check_disk() -> Dict:
-    return {"tool": "磁盘检查", "result": "磁盘使用率：98%，/var/log目录爆满"}
+def mock_check_db(assets: List[str]) -> str:
+    """数据库排查工具：连接数/慢查询/锁"""
+    return f"【数据库排查】{assets} | 连接数正常，无慢查询/锁等待"
 
-def mock_check_log() -> Dict:
-    return {"tool": "应用日志检查", "result": "ERROR：Python进程死循环，502网关错误"}
+def mock_check_app(assets: List[str]) -> str:
+    """应用服务排查工具：QPS/错误率/实例状态"""
+    return f"【应用排查】{assets} | 接口5xx错误率80%，服务无响应"
 
-def mock_diagnosis() -> Dict:
-    return {"tool": "根因诊断", "result": "死循环进程导致CPU/磁盘爆满，服务不可用"}
+def mock_check_logs(assets: List[str]) -> str:
+    """日志检索工具：异常堆栈/错误信息"""
+    return f"【日志排查】{assets} | OOM内存溢出，服务启动失败"
 
-# ====================== 工具映射 ======================
-TOOL_MAP = {
-    "检查CPU使用率": mock_check_cpu,
-    "检查磁盘使用率": mock_check_disk,
-    "检查应用错误日志": mock_check_log,
-    "根因定位与诊断": mock_diagnosis
+def mock_fix_service(assets: List[str]) -> str:
+    """服务修复工具：重启服务"""
+    return f"【修复执行】{assets} | 服务已重启，进程恢复正常"
+
+# ==================== 工具注册中心 ====================
+OPS_TOOLS = {
+    "host": mock_check_host,
+    "db": mock_check_db,
+    "app": mock_check_app,
+    "logs": mock_check_logs,
+    "fix": mock_fix_service
 }
-
-# ====================== 执行节点 ======================
-from state import OpsAgentState
-def execute_node(state: OpsAgentState) -> OpsAgentState:
-    """按计划分步执行工具"""
-    current_step = state["current_step"]
-    plan = state["plan"]
-
-    step_name = plan[current_step]
-    tool_func = TOOL_MAP[step_name]
-    result = tool_func()
-    state["execution_results"].append(result)
-
-    # 判断是否完成
-    if current_step + 1 >= len(plan):
-        state["is_plan_completed"] = True
-    else:
-        state["current_step"] = current_step + 1
-
-    return state
