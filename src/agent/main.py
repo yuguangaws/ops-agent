@@ -1,4 +1,6 @@
 from master_agent import build_master_agent
+import warnings
+warnings.filterwarnings("ignore", module="jwt")
 
 # ==================== 初始化Agent ====================
 ops_agent = build_master_agent()

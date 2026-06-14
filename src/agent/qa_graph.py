@@ -1,5 +1,4 @@
-from state import OpsAgentState
-from rag import mock_rag_retrieve
+from agent.core.state import OpsAgentState
 
 def qa_node(state: OpsAgentState) -> OpsAgentState:
     """问答节点：直接调用RAG返回结果"""

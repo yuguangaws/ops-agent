@@ -1,9 +1,11 @@
 from langgraph.graph import StateGraph, END
-from state import OpsState
-from llm import llm
-from pe import ROOT_CAUSE_PROMPT
+from agent.core.state import OpsState
+from agent.core.llm import llm
+from agent.core.pe import ROOT_CAUSE_PROMPT
 from sub_agent import domain_sub_agent
 from tools import OPS_TOOLS
+from src.agent.rag_agent.rag_agent import ops_rag_agent
+
 
 # ==================== 主Agent 节点定义 ====================
 def alarm_convergence(state: OpsState) -> OpsState:
@@ -40,9 +42,13 @@ def aggregate_root_cause(state: OpsState) -> OpsState:
     state["audit_logs"].append("【主Agent】聚合结果，分析根因")
     state["process_stage"] = "研判中"
 
+    query = f"故障现象：{state['alarm_content']}，如何排查与处理"
+    rag_context = ops_rag_agent.retrieve_context(query)
+    
     # 调用智谱AI分析根因
     results = "\n".join([f"{k}: {v}" for k, v in state["domain_results"].items()])
-    prompt = ROOT_CAUSE_PROMPT.format(results=results)
+    # 把知识库内容拼入 Prompt
+    prompt = f"{rag_context}\n{ROOT_CAUSE_PROMPT.format(results=results)}"
     response = llm.invoke(prompt).content
 
     # 解析结果

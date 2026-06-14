@@ -1,0 +1,13 @@
+graph TB
+  A[OpsRagAgent_ops_rag_agent] -->|split_all_docs| B[md_splitter_MarkdownDocSplitter]
+  B --> C[切片列表_List_of_Docs]
+  A -->|insert_documents| D[milvus_store_MilvusVectorStore]
+  D -->|embed_texts| E[zhipu_embedding_ZhipuDocEmbedding]
+  E --> F[Milvus_Collection_vector_write]
+  A -->|retrieve_context| G[milvus_query_MilvusVectorQuery]
+  G -->|embed_text_question| E
+  G -->|search_by_vector| F
+  G --> H[返回检索结果_Format]
+  subgraph util
+    I[drop_current_embedding_py] -->|drop_collection| F
+  end

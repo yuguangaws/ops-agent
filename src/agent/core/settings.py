@@ -6,7 +6,7 @@ load_dotenv()
 
 # ==================== 智谱AI 配置 ====================
 ZHIPUAI_API_KEY = os.getenv("ZHIPUAI_API_KEY", "你的智谱API_KEY")
-ZHIPUAI_MODEL = "glm-4"
+ZHIPUAI_MODEL = "glm-3-turbo"
 TEMPERATURE = 0.1  # 运维场景低随机性
 MAX_TOKENS = 2048
 

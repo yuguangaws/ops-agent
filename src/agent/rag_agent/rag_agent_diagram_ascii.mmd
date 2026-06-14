@@ -1,0 +1,13 @@
+graph TB
+  A[OpsRag] -->|split| B[md_split]
+  B --> C[Chunks]
+  A -->|insert| D[milvus_store]
+  D -->|embed| E[zhipu_emb]
+  E --> F[milvus]
+  A -->|retrieve| G[milvus_query]
+  G -->|embedQ| E
+  G -->|search| F
+  G --> H[format]
+  subgraph util
+    I[drop_current] -->|drop| F
+  end

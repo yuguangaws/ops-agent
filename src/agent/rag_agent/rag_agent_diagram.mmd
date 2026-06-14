@@ -1,0 +1,13 @@
+graph TB
+  A[OpsRagAgent (ops_rag_agent)] -->|split_all_docs()| B[md_splitter (MarkdownDocSplitter)]
+  B --> C[Chunks (List of Documents)]
+  A -->|insert_documents(chunks)| D[milvus_store (MilvusVectorStore)]
+  D -->|embed_texts(texts)| E[zhipu_embedding (ZhipuDocEmbedding)]
+  E --> F[Milvus Collection (vector write)]
+  A -->|retrieve_context(question)| G[milvus_query (MilvusVectorQuery)]
+  G -->|embed_text(question)| E
+  G -->|search by vector| F
+  G --> H[Return search results -> OpsRagAgent formatting]
+  subgraph util
+    I[drop_current_embedding.py] -->|drop collection| F
+  end
