@@ -4,11 +4,11 @@ CURR_PATH = Path(__file__).resolve()
 SRC_PATH = CURR_PATH.parent.parent.parent
 sys.path.append(str(SRC_PATH))
 
-from rag_agent import ops_rag_agent
+from .rag_agent import OpsRagAgent
 
 if __name__ == "__main__":
     # 仅首次执行构建，后续注释该行，直接检索
-    ops_rag_agent.build_knowledge_base()
+    OpsRagAgent.build_knowledge_base()
 
     # 测试用例列表
     test_queries = [
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     for idx, q in enumerate(test_queries, 1):
         print(f"\n===== 测试用例 {idx} =====")
         print(f"问题：{q}")
-        res = ops_rag_agent.retrieve_context(q)
+        res = OpsRagAgent.retrieve_context(q)
         print(f"检索结果：\n{res}")
 
-    ops_rag_agent.close()
+    OpsRagAgent.close()

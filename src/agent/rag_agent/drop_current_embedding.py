@@ -1,5 +1,5 @@
 from pymilvus import connections, utility
-from rag_settings import MILVUS_HOST, MILVUS_PORT, MILVUS_COLLECTION_NAME
+from .rag_settings import MILVUS_HOST, MILVUS_PORT, MILVUS_COLLECTION_NAME
 
 # 连接Milvus
 connections.connect(

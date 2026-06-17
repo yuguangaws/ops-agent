@@ -1,7 +1,7 @@
-from state import OpsState
-from tools import OPS_TOOLS
-from llm import llm
-from pe import REACT_THINK_PROMPT
+from .core.state import OpsState
+from .tools import OPS_TOOLS
+from .core.llm import llm
+from .core.pe import REACT_THINK_PROMPT
 
 # ==================== 通用 ReAct 子Agent（所有领域复用） ====================
 def domain_sub_agent(state: OpsState, domain: str) -> OpsState:

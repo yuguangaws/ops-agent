@@ -1,10 +1,10 @@
 from typing import List, Dict
 from pymilvus import Collection, connections
-from rag_settings import (
+from .rag_settings import (
     MILVUS_HOST, MILVUS_PORT, MILVUS_TIMEOUT,
     MILVUS_COLLECTION_NAME, SEARCH_TOP_K, SEARCH_METRIC_TYPE
 )
-from document_embedding import zhipu_embedding
+from .document_embedding import zhipu_embedding
 
 
 class MilvusVectorQuery:

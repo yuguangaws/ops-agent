@@ -1,7 +1,7 @@
 from typing import List
 from langchain_community.embeddings import ZhipuAIEmbeddings
-from rag_settings import ZHIPU_EMBEDDING_MODEL, EMBEDDING_BATCH_SIZE
-from rag_settings import ZHIPUAI_API_KEY
+from .rag_settings import ZHIPU_EMBEDDING_MODEL, EMBEDDING_BATCH_SIZE
+from .rag_settings import ZHIPUAI_API_KEY
 
 
 class ZhipuDocEmbedding:

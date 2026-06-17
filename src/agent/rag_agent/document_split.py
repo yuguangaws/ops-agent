@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List
 from langchain_core.documents import Document
 from langchain_text_splitters import MarkdownTextSplitter
-from rag_settings import CHUNK_SIZE, CHUNK_OVERLAP, KEEP_SEPARATOR, DOC_BASE_DIR
+from .rag_settings import CHUNK_SIZE, CHUNK_OVERLAP, KEEP_SEPARATOR, DOC_BASE_DIR
 
 
 class MarkdownDocSplitter:

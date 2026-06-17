@@ -1,7 +1,7 @@
 
 
 from langchain_community.chat_models import ChatZhipuAI
-from agent.core.settings import ZHIPUAI_API_KEY, ZHIPUAI_MODEL, TEMPERATURE, MAX_TOKENS
+from .settings import ZHIPUAI_API_KEY, ZHIPUAI_MODEL, TEMPERATURE, MAX_TOKENS
 
 
 # 生成用LLM

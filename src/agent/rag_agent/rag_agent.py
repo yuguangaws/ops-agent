@@ -1,8 +1,8 @@
 from typing import List
 from langchain_core.documents import Document
-from document_split import md_splitter
-from embedding_store import milvus_store
-from embedding_query import milvus_query
+from .document_split import md_splitter
+from .embedding_store import milvus_store
+from .embedding_query import milvus_query
 
 
 class OpsRagAgent:
