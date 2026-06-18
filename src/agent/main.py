@@ -1,4 +1,4 @@
-from master_agent import build_master_agent
+from .master_agent import build_master_agent
 import warnings
 warnings.filterwarnings("ignore", module="jwt")
 

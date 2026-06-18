@@ -45,16 +45,22 @@ def aggregate_root_cause(state: OpsState) -> OpsState:
     query = f"故障现象：{state['alarm_content']}，如何排查与处理"
     rag_context = ops_rag_agent.retrieve_context(query)
     
-    # 调用智谱AI分析根因
+    # 拼接各领域排查结果
     results = "\n".join([f"{k}: {v}" for k, v in state["domain_results"].items()])
-    # 把知识库内容拼入 Prompt
-    prompt = f"{rag_context}\n{ROOT_CAUSE_PROMPT.format(results=results)}"
+    
+    # ✅ 核心修正：把所有占位符参数都传进去，不要漏
+    prompt = ROOT_CAUSE_PROMPT.format(
+        alarm_content=state["alarm_content"],
+        results=results,
+        rag_context=rag_context
+    )
+    
     response = llm.invoke(prompt).content
 
-    # 解析结果
-    state["root_cause"] = response.split("修复方案")[0].strip()
+    # 解析结果（后续建议改成json.loads解析结构化输出）
+    state["root_cause"] = response.split("修复方案")[0].strip() if "修复方案" in response else response
     state["fix_actions"] = ["重启异常服务实例"]
-    state["is_high_risk"] = False  # 可改为True测试人工审批
+    state["is_high_risk"] = False
 
     return state
 
