@@ -37,32 +37,100 @@ def parallel_check(state: OpsState) -> OpsState:
 
     return state
 
-def aggregate_root_cause(state: OpsState) -> OpsState:
-    """结果聚合 + LLM根因研判"""
-    state["audit_logs"].append("【主Agent】聚合结果，分析根因")
-    state["process_stage"] = "研判中"
+# def aggregate_root_cause(state: OpsState) -> OpsState:
+#     """结果聚合 + LLM根因研判"""
+#     state["audit_logs"].append("【主Agent】聚合结果，分析根因")
+#     state["process_stage"] = "研判中"
 
+#     query = f"故障现象：{state['alarm_content']}，如何排查与处理"
+#     rag_context = ops_rag_agent.retrieve_context(query)
+    
+#     # 拼接各领域排查结果
+#     results = "\n".join([f"{k}: {v}" for k, v in state["domain_results"].items()])
+    
+#     # ✅ 核心修正：把所有占位符参数都传进去，不要漏
+#     prompt = ROOT_CAUSE_PROMPT.format(
+#         alarm_content=state["alarm_content"],
+#         results=results,
+#         rag_context=rag_context
+#     )
+    
+#     response = llm.stream(prompt).content
+
+#     # 解析结果（后续建议改成json.loads解析结构化输出）
+#     state["root_cause"] = response.split("修复方案")[0].strip() if "修复方案" in response else response
+#     state["fix_actions"] = ["重启异常服务实例"]
+#     state["is_high_risk"] = False
+
+#     return state
+
+def aggregate_root_cause(state: OpsState):
+    """结果聚合 + LLM根因研判（标准流式输出版）"""
+    # 第一次推送：标记开始研判，更新审计日志和阶段
+    yield {
+        "process_stage": "根因研判中",
+        "audit_logs": state["audit_logs"] + ["【主Agent】聚合结果，正在分析根因..."]
+    }
+
+    # 召回知识库内容
     query = f"故障现象：{state['alarm_content']}，如何排查与处理"
     rag_context = ops_rag_agent.retrieve_context(query)
     
     # 拼接各领域排查结果
     results = "\n".join([f"{k}: {v}" for k, v in state["domain_results"].items()])
     
-    # ✅ 核心修正：把所有占位符参数都传进去，不要漏
+    # 构造完整prompt
     prompt = ROOT_CAUSE_PROMPT.format(
         alarm_content=state["alarm_content"],
         results=results,
         rag_context=rag_context
     )
+
+    # 流式调用大模型，逐token推送更新
+    partial_root_cause = ""
+    for chunk in llm.stream(prompt):
+        # 兼容不同LLM SDK的返回格式
+        if hasattr(chunk, "content"):
+            token = chunk.content
+        elif isinstance(chunk, str):
+            token = chunk
+        else:
+            token = str(chunk)
+        
+        partial_root_cause += token
+        # 每次只推送更新的root_cause字段，轻量高效
+        yield {"root_cause": partial_root_cause}
+
+    # 全部生成完成后，解析结构化数据，填充其余字段
+    fix_actions = ["重启异常服务实例"]
+    is_high_risk = False
+    risk_desc = "无"
     
-    response = llm.invoke(prompt).content
+    try:
+        import json
+        # 提取JSON内容
+        if "```json" in partial_root_cause:
+            json_str = partial_root_cause.split("```json")[1].split("```")[0].strip()
+        else:
+            json_str = partial_root_cause.strip()
+        root_cause_data = json.loads(json_str)
+        
+        fix_actions = [root_cause_data["fix_scheme"]["immediate"]]
+        is_high_risk = root_cause_data["is_high_risk"]
+        risk_desc = root_cause_data.get("risk_desc", "无")
+    except Exception:
+        # 解析失败兜底
+        pass
 
-    # 解析结果（后续建议改成json.loads解析结构化输出）
-    state["root_cause"] = response.split("修复方案")[0].strip() if "修复方案" in response else response
-    state["fix_actions"] = ["重启异常服务实例"]
-    state["is_high_risk"] = False
-
-    return state
+    # 最终推送：完整的结果字段 + 审计日志更新
+    yield {
+        "root_cause": partial_root_cause,
+        "fix_actions": fix_actions,
+        "is_high_risk": is_high_risk,
+        "risk_desc": risk_desc,
+        "process_stage": "研判完成",
+        "audit_logs": state["audit_logs"] + ["【主Agent】根因分析完成"]
+    }
 
 def judge_operation(state: OpsState) -> str:
     """操作路由：普通/高危"""
