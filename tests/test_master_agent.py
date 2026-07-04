@@ -3,6 +3,8 @@ os.environ["NO_PROXY"] = "localhost,127.0.0.1"
 import sys
 from pathlib import Path
 
+from langgraph.checkpoint.memory import InMemorySaver
+
 project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root))
 
@@ -18,7 +20,8 @@ def test_master_agent():
 
     try:
         # 1. 构建主Agent工作流
-        master_workflow = build_master_agent()
+        # 单元测试不依赖真实 Postgres，用内存 checkpointer 覆盖默认的持久化实现
+        master_workflow = build_master_agent(checkpointer=InMemorySaver())
         print("✅ 主Agent工作流构建成功")
 
         # 2. 构造完整初始状态（所有用到的字段必须初始化，避免KeyError）

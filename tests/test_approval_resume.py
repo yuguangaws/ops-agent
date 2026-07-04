@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+from langgraph.checkpoint.memory import InMemorySaver
+
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from src.agent import master_agent
@@ -74,7 +76,7 @@ def _init_state(alarm_id: str) -> OpsState:
 @patch("src.agent.sub_agent.llm", new=_FakeLLM())
 @patch("src.agent.master_agent.llm", new=_FakeLLM())
 def test_high_risk_alarm_interrupts_then_resumes_after_approval(mock_rag):
-    workflow = master_agent.build_master_agent()
+    workflow = master_agent.build_master_agent(checkpointer=InMemorySaver())
     config = {"configurable": {"thread_id": "ALARM-TEST-APPROVAL-001"}}
 
     # ---- 第一次 invoke：应在 human_approval 前中断，execute_fix 之后的节点都不该跑 ----
@@ -114,7 +116,7 @@ def test_high_risk_alarm_interrupts_then_resumes_after_approval(mock_rag):
 @patch("src.agent.master_agent.llm", new=_FakeLLM())
 def test_high_risk_alarm_stops_fix_when_rejected(mock_rag):
     """驳回分支：execute_fix 应识别 approval_status != approved 并终止修复，不应再执行 mock_fix_service。"""
-    workflow = master_agent.build_master_agent()
+    workflow = master_agent.build_master_agent(checkpointer=InMemorySaver())
     config = {"configurable": {"thread_id": "ALARM-TEST-APPROVAL-002"}}
 
     workflow.invoke(_init_state("ALARM-TEST-APPROVAL-002"), config=config)

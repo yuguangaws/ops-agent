@@ -1,7 +1,12 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import InMemorySaver
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+from .core.settings import CHECKPOINT_PG_URI
 from .core.state import OpsState
 from .core.llm import llm
 from .core.pe import ROOT_CAUSE_PROMPT
@@ -162,8 +167,35 @@ def reflection(state: OpsState) -> OpsState:
     state["process_stage"] = "复盘完成"
     return state
 
+@lru_cache(maxsize=1)
+def _get_checkpointer() -> PostgresSaver:
+    """构建持久化的 Postgres checkpointer（进程内单例）。
+
+    用连接池而不是 `PostgresSaver.from_conn_string(...)` 的 `with` 用法，
+    是因为图要跨多次 invoke/resume 调用，甚至跨进程重启后仍要能从数据库里
+    找回中断状态继续跑，连接必须在应用生命周期内保持打开，不能在某次调用
+    结束时就被关掉。`setup()` 是幂等的（内部按迁移版本号判断），每次构建
+    Agent 时调用一次即可，不需要额外的运维步骤来初始化表结构。
+    """
+    pool = ConnectionPool(
+        conninfo=CHECKPOINT_PG_URI,
+        max_size=10,
+        kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+    )
+    checkpointer = PostgresSaver(pool)
+    checkpointer.setup()
+    return checkpointer
+
+
 # ==================== 构建 LangGraph 主流程 ====================
-def build_master_agent():
+def build_master_agent(checkpointer: BaseCheckpointSaver | None = None):
+    """构建并编译主流程图。
+
+    checkpointer 默认使用持久化的 Postgres 实现（见 `_get_checkpointer`），
+    需要本地先 `docker compose up -d` 启动 `docker-compose.yml` 里的
+    ops-agent-postgres 服务；单元测试等不想依赖真实数据库的场景，可以显式
+    传入 `InMemorySaver()` 覆盖。
+    """
     workflow = StateGraph(OpsState)
 
     # 添加节点
@@ -200,7 +232,7 @@ def build_master_agent():
     # 否则 LangGraph 只会在中断点静默截断整张图并返回，execute_fix 之后的所有
     # 节点都不会执行，且无法被恢复（此前就是这个未接 checkpointer 的坑）。
     return workflow.compile(
-        checkpointer=InMemorySaver(),
+        checkpointer=checkpointer or _get_checkpointer(),
         interrupt_before=["human_approval"],
     )
 
