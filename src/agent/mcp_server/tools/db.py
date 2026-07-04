@@ -1,3 +1,5 @@
+import os
+
 import pymysql
 from ..registry import register_mcp_tool
 
@@ -12,13 +14,13 @@ def check_db(params: dict) -> str:
     # 目标资产列表（兼容上层Agent传参，用于展示）
     assets = params.get("assets", ["bi_test本地实例"])
 
-    # MySQL 连接配置（后续可抽离到统一配置文件）
+    # MySQL 连接配置：密码等敏感信息从环境变量读取，禁止硬编码在源码中
     db_config = {
-        "host": "localhost",
-        "port": 3306,
-        "user": "root",
-        "password": "MyNew#Pass123",
-        "database": "bi_test",
+        "host": os.getenv("OPS_MYSQL_HOST", "localhost"),
+        "port": int(os.getenv("OPS_MYSQL_PORT", "3306")),
+        "user": os.getenv("OPS_MYSQL_USER", "root"),
+        "password": os.getenv("OPS_MYSQL_PASSWORD", ""),
+        "database": os.getenv("OPS_MYSQL_DATABASE", "bi_test"),
         "connect_timeout": 5,  # 连接超时5秒，避免卡住
         "charset": "utf8mb4"
     }

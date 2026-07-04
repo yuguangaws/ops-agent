@@ -6,7 +6,7 @@ MILVUS_HOST: str = "localhost"
 MILVUS_PORT: int = 19530
 MILVUS_TIMEOUT: int = 10000  # 单位：毫秒
 MILVUS_COLLECTION_NAME: str = "ops_sre_docs"  # 运维知识库集合名
-VECTOR_DIM: int = 2048  # 智谱 Embedding 固定 2048 维
+VECTOR_DIM: int = 2048  # 需与 ZHIPU_EMBEDDING_MODEL 实际输出维度一致（embedding-3 默认 2048 维，可通过模型参数调整），改维度时务必同步修改这里，否则 Milvus collection schema 会与实际向量维度不匹配导致写入失败
 
 # ===================== 文档切片配置（Markdown 最优参数） =====================
 CHUNK_SIZE: int = 1000        # 单块字符数

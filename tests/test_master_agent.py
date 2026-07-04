@@ -38,8 +38,10 @@ def test_master_agent():
         print("✅ 初始状态构造完成")
 
         # 3. 执行全链路流程
+        # checkpointer 需要一个 thread_id 来定位/持久化本次执行状态
+        config = {"configurable": {"thread_id": init_state["alarm_id"]}}
         print("\n▶ 开始执行故障排查全流程...")
-        final_state = master_workflow.invoke(init_state)
+        final_state = master_workflow.invoke(init_state, config=config)
 
         # 4. 打印执行结果
         print("\n" + "=" * 70)

@@ -1,4 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import InMemorySaver
 from .core.state import OpsState
 from .core.llm import llm
 from .core.pe import ROOT_CAUSE_PROMPT
@@ -27,42 +30,30 @@ def alarm_convergence(state: OpsState) -> OpsState:
     return state
 
 def parallel_check(state: OpsState) -> OpsState:
-    """并行调度：多领域子Agent同时排查"""
+    """并行调度：多领域子Agent真正并发执行（线程池）"""
     domains = state["domains_to_check"]
     state["audit_logs"].append(f"【主Agent】并行排查：{domains}")
 
-    # 并行执行所有子Agent
-    for domain in domains:
-        state = domain_sub_agent(state, domain)
+    if not domains:
+        return state
+
+    # 每个线程使用独立的 domain_results/audit_logs 容器，避免并发写同一个共享 dict/list；
+    # 执行结果在主线程里统一合并回共享 state，保证合并这一步是线程安全的。
+    with ThreadPoolExecutor(max_workers=len(domains)) as executor:
+        futures = {
+            executor.submit(
+                domain_sub_agent,
+                dict(state, domain_results={}, audit_logs=[]),
+                domain,
+            ): domain
+            for domain in domains
+        }
+        for future in as_completed(futures):
+            domain_state = future.result()
+            state["domain_results"].update(domain_state["domain_results"])
+            state["audit_logs"].extend(domain_state["audit_logs"])
 
     return state
-
-# def aggregate_root_cause(state: OpsState) -> OpsState:
-#     """结果聚合 + LLM根因研判"""
-#     state["audit_logs"].append("【主Agent】聚合结果，分析根因")
-#     state["process_stage"] = "研判中"
-
-#     query = f"故障现象：{state['alarm_content']}，如何排查与处理"
-#     rag_context = ops_rag_agent.retrieve_context(query)
-    
-#     # 拼接各领域排查结果
-#     results = "\n".join([f"{k}: {v}" for k, v in state["domain_results"].items()])
-    
-#     # ✅ 核心修正：把所有占位符参数都传进去，不要漏
-#     prompt = ROOT_CAUSE_PROMPT.format(
-#         alarm_content=state["alarm_content"],
-#         results=results,
-#         rag_context=rag_context
-#     )
-    
-#     response = llm.stream(prompt).content
-
-#     # 解析结果（后续建议改成json.loads解析结构化输出）
-#     state["root_cause"] = response.split("修复方案")[0].strip() if "修复方案" in response else response
-#     state["fix_actions"] = ["重启异常服务实例"]
-#     state["is_high_risk"] = False
-
-#     return state
 
 def aggregate_root_cause(state: OpsState):
     """结果聚合 + LLM根因研判（标准流式输出版）"""
@@ -137,9 +128,15 @@ def judge_operation(state: OpsState) -> str:
     return "high_risk" if state["is_high_risk"] else "normal"
 
 def human_approval(state: OpsState) -> OpsState:
-    """人工审批节点"""
-    state["approval_status"] = "pending"
-    state["audit_logs"].append("【主Agent】等待人工审批高危操作")
+    """人工审批节点。
+
+    该节点被列在 `interrupt_before` 中，图第一次执行到这里时会先暂停，
+    此时这个函数体根本不会运行；只有在外部通过 `resume_with_approval`
+    写入 `approval_status` 并恢复执行后，才会真正跑到这里——所以这里只应
+    记录审批结果，不能像之前那样无条件把 approval_status 重置回
+    "pending"，否则会把外部刚写入的审批结果覆盖掉。
+    """
+    state["audit_logs"].append(f"【主Agent】人工审批结果：{state['approval_status']}")
     return state
 
 def execute_fix(state: OpsState) -> OpsState:
@@ -198,5 +195,28 @@ def build_master_agent():
     workflow.add_edge("verify_result", "reflection")
     workflow.add_edge("reflection", END)
 
-    # 编译：高危操作前中断
-    return workflow.compile(interrupt_before=["human_approval"])
+    # 编译：高危操作前中断。
+    # 注意：interrupt_before 必须配合 checkpointer 才能真正暂停并等待外部恢复；
+    # 否则 LangGraph 只会在中断点静默截断整张图并返回，execute_fix 之后的所有
+    # 节点都不会执行，且无法被恢复（此前就是这个未接 checkpointer 的坑）。
+    return workflow.compile(
+        checkpointer=InMemorySaver(),
+        interrupt_before=["human_approval"],
+    )
+
+
+def resume_with_approval(
+    workflow, config: dict, approved: bool
+) -> OpsState:
+    """在 human_approval 中断点恢复图执行。
+
+    调用方需使用与首次 `workflow.invoke(state, config)` 相同的 `config`
+    （同一个 `thread_id`），先把审批结果写入 checkpointer 保存的状态，
+    再以 `None` 作为输入恢复执行，图会从中断的 human_approval 节点继续跑完
+    execute_fix -> verify_result -> reflection。
+    """
+    workflow.update_state(
+        config,
+        {"approval_status": "approved" if approved else "rejected"},
+    )
+    return workflow.invoke(None, config=config)
